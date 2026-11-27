@@ -1,0 +1,46 @@
+# wingfeeling 總店（Cloudflare Worker：網頁＋後端放在同一個 Worker）
+# 部署：這個 GitHub repo 連結 Cloudflare（Workers Builds），每次推上 main 就自動部署。
+# ★ name 一定要和 Cloudflare 主控台上的 Worker 名稱一模一樣，不然自動部署會失敗。
+name = "wingfeeling-shop"
+main = "worker/src/index.js"
+compatibility_date = "2025-11-01"
+
+[assets]
+directory = "./web"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+
+# 每 10 分鐘：付款成功但通知網站出貨失敗的訂單，自動重試
+[triggers]
+crons = ["*/10 * * * *"]
+
+# 資料庫：先在 Cloudflare 主控台「儲存空間與資料庫 → D1」建立 wingfeeling-shop-db，
+#         把「資料庫 ID」貼到下面（資料表會自動建立）
+[[d1_databases]]
+binding = "DB"
+database_name = "wingfeeling-shop-db"
+database_id = "請貼上-D1-資料庫-ID"
+
+[observability]
+enabled = true
+
+# 公開設定（不是祕密）。改這裡 → 推上 GitHub → 自動生效
+[vars]
+STORE_NAME = "wingfeeling 數位商店"
+OWNER_NAME = "wingfeeling"
+SUPPORT_EMAIL = "wingfeeling@gmail.com"
+# 管理後台可以登入的 Google 帳號，多個用逗號分開
+ADMIN_EMAILS = "wingfeeling@gmail.com"
+# 總店自己的登入（客服頁、我的訂單、管理後台）用哪個 Firebase 專案。跟 web/js/config.js 一樣
+HUB_FIREBASE_PROJECT = "pdf-editor-54ab7"
+# 'stage' 綠界測試環境・'production' 正式收款
+ECPAY_MODE = "stage"
+# 這個金額以下只收信用卡（ATM 每筆最低約 15 元手續費）
+ATM_MIN_AMOUNT = "600"
+# 不提供的付款方式（超商代碼／條碼每筆固定費用，小額不划算）
+ECPAY_IGNORE_PAYMENT = "CVS#BARCODE#WebATM"
+# 除了「服務與商品」裡填的網站以外，還有哪些網址可以呼叫總店（逗號分開，通常不用填）
+EXTRA_ORIGINS = ""
+
+# 祕密不要寫在這裡！到 Cloudflare 主控台 → Workers 和 Pages → wingfeeling-shop → 設定 → 變數和祕密，類型選「祕密」：
+#   ECPAY_MERCHANT_ID、ECPAY_HASH_KEY、ECPAY_HASH_IV：綠界的商店代號和金鑰（跟 ar-pet-pay 原本設定的一樣）

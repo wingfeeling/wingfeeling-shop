@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>我的訂單｜wingfeeling 數位商店</title>
+<link rel="stylesheet" href="css/shop.css">
+</head>
+<body>
+<header id="top"></header>
+<main class="wrap narrow">
+  <h1>我的訂單</h1>
+  <p class="muted">在 wingfeeling 數位商店買過的所有商品（所有服務）。用同一個 Google 帳號（同一個 Email）登入就看得到。</p>
+  <div id="box"><p class="muted"><span class="spin"></span> 讀取中…</p></div>
+</main>
+<footer></footer>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="js/config.js"></script><script src="js/shop.js"></script>
+<script>
+Shop.header('orders.html');
+const { esc, money } = Shop, box = document.getElementById('box');
+const ST = { paid: ['付款成功', 'ok'], waiting: ['等待繳費', 'warn'], failed: ['付款失敗', 'bad'], refunded: ['已退款', 'gray'], amount_mismatch: ['金額不符，處理中', 'warn'], simulated: ['模擬付款', 'gray'] };
+async function load() {
+  await Shop.ready;
+  if (!Shop.user) { box.innerHTML = '<div class="card"><p>請先登入。</p><button class="btn primary" id="lg">用 Google 登入</button></div>'; document.getElementById('lg').onclick = () => Shop.signIn().then(u => u && location.reload()).catch(e => e.message !== '已取消登入' && alert(e.message)); return; }
+  const [{ orders }, cat] = await Promise.all([Shop.api('/api/me/orders', {}), Shop.api('/api/catalog')]);
+  const name = id => (cat.services.find(s => s.id === id) || {}).name || id;
+  box.innerHTML = `<p class="small muted">登入帳號：<b>${esc(Shop.user.email)}</b>・<a href="#" id="out">登出</a></p>
+    <div class="tablebox"><table class="t" style="min-width:600px"><thead><tr><th>時間</th><th>服務／商品</th><th>金額</th><th>狀態</th><th>訂單編號</th></tr></thead><tbody>
+    ${orders.map(o => { const [l, c] = ST[o.status] || [o.status, 'gray']; return `<tr><td>${Shop.fmt(o.paid_at || o.created_at)}</td><td>${esc(name(o.service))}<br><span class="small muted">${esc(o.name)}</span></td><td class="n">${money(o.amount)}</td>
+      <td><span class="pill ${c}">${l}</span>${o.status === 'paid' && !o.delivered ? '<br><span class="small muted">開通中</span>' : ''}</td><td class="mono small">${esc(o.no)}</td></tr>`; }).join('') || '<tr><td colspan="5" class="muted">還沒有訂單</td></tr>'}
+    </tbody></table></div>
+    <p class="small muted">在不同服務用不同的帳號登入過的話，用那個帳號登入才看得到那邊的訂單。付款沒有開通、要退款，請到<a href="support.html">客服</a>留言並附上訂單編號。</p>`;
+  document.getElementById('out').onclick = e => { e.preventDefault(); Shop.signOut(); };
+}
+load().catch(e => box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`);
+</script>
+</body>
+</html>

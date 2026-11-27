@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wingfeeling 數位商店｜全部商品</title>
+<meta name="description" content="wingfeeling 個人經營的線上數位服務：PDF 編輯器、AR 寵物召喚、語音轉文字。所有商品都在這裡結帳。">
+<link rel="stylesheet" href="css/shop.css">
+</head>
+<body>
+<header id="top"></header>
+<main class="wrap">
+  <section class="hero">
+    <span class="pill gold">個人經營的數位服務</span>
+    <h1>wingfeeling 數位商店</h1>
+    <p class="lead">這裡是 wingfeeling 所有線上服務的官方商店。每個服務的付費方案、加購商品都列在下面，<b>全部在這個網站結帳</b>，付款由綠界科技 ECPay 處理。</p>
+    <div id="stage"></div>
+  </section>
+
+  <div class="facts">
+    <div class="card"><b>數位商品，付款後自動開通</b><span class="small muted">付款成功後幾秒內會加到你在該服務的帳號，不用等寄送。</span></div>
+    <div class="card"><b>價格含稅、以新台幣計算</b><span class="small muted">頁面上的價格就是實際付款金額，不會另外收費。</span></div>
+    <div class="card"><b>有問題找得到人</b><span class="small muted">所有服務共用一個<a href="support.html">客服・許願池</a>，或來信 <a id="mail" href="#"></a>。</span></div>
+  </div>
+
+  <div id="list"><p class="muted"><span class="spin"></span> 讀取商品中…</p></div>
+
+  <h2>商店資訊</h2>
+  <div class="card">
+    <table class="info"><tbody>
+      <tr><th>商店名稱</th><td>wingfeeling 數位商店</td></tr>
+      <tr><th>經營者</th><td>wingfeeling（個人經營，無統一編號）</td></tr>
+      <tr><th>客服信箱</th><td><a id="mail2" href="#"></a>（7 個工作天內回覆）</td></tr>
+      <tr><th>商品類型</th><td>線上提供的數位內容與服務（軟體功能開通、虛擬道具），沒有實體寄送</td></tr>
+      <tr><th>交付方式</th><td>付款成功後自動開通到購買者在該服務登入的帳號</td></tr>
+      <tr><th>付款方式</th><td>綠界科技 ECPay：信用卡；部分方案可用 ATM 轉帳</td></tr>
+      <tr><th>退款</th><td>請看<a href="terms.html">購買須知與退款政策</a></td></tr>
+    </tbody></table>
+  </div>
+</main>
+<footer></footer>
+<script src="js/config.js"></script><script src="js/shop.js"></script>
+<script>
+Shop.header('index.html');
+const { esc, money } = Shop, mail = Shop.config.supportEmail;
+for (const id of ['mail', 'mail2']) { const a = document.getElementById(id); a.textContent = mail; a.href = 'mailto:' + mail; }
+Shop.api('/api/catalog').then(c => {
+  if (c.mode === 'stage') document.getElementById('stage').innerHTML = '<div class="notice warn">🧪 目前是綠界<b>測試環境</b>，付款不會真的扣款。</div>';
+  document.getElementById('list').innerHTML = c.services.map(s => `
+    <section class="card svc" id="${esc(s.id)}">
+      <div class="head"><div class="ic">${esc(s.icon || '✨')}</div>
+        <div><h2 style="margin:0">${esc(s.name)}</h2><p>${esc(s.tagline || '')}</p><p>${esc(s.description || '')}</p></div>
+        <a class="btn go" href="${esc(s.url)}" target="_blank" rel="noopener">前往 ${esc(s.name)} ↗</a></div>
+      <div class="plist">${s.products.map(p => `
+        <div class="prod"><div><span class="nm">${esc(p.name)}</span> ${p.tag ? `<span class="pill gold">${esc(p.tag)}</span>` : ''}${p.pay === 'Credit' ? ' <span class="pill gray">信用卡</span>' : ''}</div>
+          <div class="pr"><small>NT$</small>${Number(p.price).toLocaleString('zh-TW')}</div>
+          <a class="btn sm primary bt" href="${esc(s.buy_url || s.url)}" target="_blank" rel="noopener">購買</a>
+          ${p.description ? `<div class="ds">${esc(p.description)}</div>` : ''}</div>`).join('') || '<div class="prod muted">目前沒有販售中的商品</div>'}
+      </div>
+      <div class="small muted" style="padding:10px 22px 16px">購買要先在「${esc(s.name)}」登入帳號，商品會開通到那個帳號。按「購買」會打開服務，在服務裡按購買後會回到本店結帳。</div>
+    </section>`).join('');
+}).catch(e => { document.getElementById('list').innerHTML = `<div class="notice bad">讀不到商品（${esc(e.message)}），請重新整理。</div>`; });
+</script>
+</body>
+</html>

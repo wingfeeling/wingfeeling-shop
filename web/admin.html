@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>總店管理後台｜wingfeeling 數位商店</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/shop.css">
+<style>
+.wrap{max-width:1200px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:12px 0}
+.tile{padding:14px 16px}.tile .k{font-size:.82rem;color:var(--muted)}.tile .v{font-family:var(--serif);font-size:1.6rem;font-weight:800;font-variant-numeric:tabular-nums}
+.tile .s{font-size:.8rem;color:var(--muted)}
+.pane{display:none}.pane.on{display:block}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0 12px}
+.svcard{margin:14px 0}.svcard summary{cursor:pointer;list-style:none;display:flex;gap:12px;align-items:center}
+.svcard summary::-webkit-details-marker{display:none}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+.grid2 label.f{margin:8px 0}.grid2 input,.grid2 select,.grid2 textarea{width:100%}
+.hint{font-size:.8rem;color:var(--muted);margin-top:2px}
+.secret{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.secret code{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:3px 8px;word-break:break-all}
+.tk textarea{min-height:70px}
+tr.dim td{opacity:.55}
+</style>
+</head>
+<body>
+<header id="top"></header>
+<main class="wrap">
+  <h1>總店管理後台</h1>
+  <div id="gate" class="card"><p class="muted"><span class="spin"></span> 確認登入中…</p></div>
+  <div id="app" hidden>
+    <div class="row" style="justify-content:space-between"><div class="small muted">登入：<b id="me"></b>・綠界：<span id="mode"></span>・<a href="#" id="out">登出</a></div>
+      <button class="btn sm" id="ecCheck">檢查綠界金鑰</button></div>
+    <div class="tabs" id="tabs" style="margin-top:14px">
+      <button data-p="dash" class="on">總覽</button>
+      <button data-p="orders">訂單・退款<span class="cnt" id="cntO" hidden></span></button>
+      <button data-p="tickets">客服・許願池<span class="cnt" id="cntT" hidden></span></button>
+      <button data-p="svcs">服務與商品</button>
+      <button data-p="ents">付費權限（總店記錄）</button>
+      <button data-p="log">操作紀錄</button>
+    </div>
+
+    <section class="pane on" id="p-dash">
+      <div class="tiles" id="tiles"></div>
+      <h2>各服務本月營收（目前環境）</h2>
+      <div class="tablebox"><table class="t" style="min-width:560px"><thead><tr><th>服務</th><th>本月筆數</th><th>本月金額</th><th>未讀客服</th><th>未讀許願</th><th>服務自己的後台</th></tr></thead><tbody id="svcSales"></tbody></table></div>
+      <h2>最近的訂單</h2>
+      <div class="tablebox"><table class="t"><thead><tr><th>時間</th><th>服務</th><th>商品</th><th>金額</th><th>狀態</th><th>出貨</th><th>Email</th></tr></thead><tbody id="recent"></tbody></table></div>
+    </section>
+
+    <section class="pane" id="p-orders">
+      <div class="notice info small"><b>退款流程：</b>先到<b>綠界廠商後台</b>把錢退給客人（信用卡：信用卡收單 → 交易明細 → 退款；ATM 轉帳綠界不會退，要自己匯回），再回來這裡按「標記已退款」，總店會通知該服務收回這筆訂單給的東西。</div>
+      <div class="filters">
+        <select id="oSvc"><option value="">全部服務</option></select>
+        <select id="oSt"><option value="">最近（不含太舊的未付款）</option><option value="problem">⚠️ 需要處理</option><option value="paid">已付款</option><option value="waiting">等待繳費</option><option value="refunded">已退款</option><option value="failed">失敗</option><option value="created">未付款</option><option value="all">全部</option></select>
+        <select id="oEnv"><option value="cur">目前環境</option><option value="">全部（含測試）</option></select>
+        <input id="oQ" placeholder="Email／訂單編號／玩家 ID" style="width:220px"><button class="btn sm" id="oGo">查詢</button>
+      </div>
+      <div class="tablebox"><table class="t"><thead><tr><th>建立時間</th><th>訂單編號</th><th>服務／商品</th><th>金額</th><th>狀態</th><th>出貨</th><th>付款方式</th><th>買家</th><th></th></tr></thead><tbody id="oList"></tbody></table></div>
+    </section>
+
+    <section class="pane" id="p-tickets">
+      <div class="filters">
+        <select id="tSvc"><option value="">全部服務</option></select>
+        <select id="tType"><option value="">客服＋許願</option><option value="bug">💬 客服</option><option value="wish">🌠 許願池</option></select>
+        <select id="tSt"><option value="">全部狀態</option><option value="unread">未讀</option><option value="open">等待回覆</option><option value="replied">已回覆</option><option value="closed">已結案</option></select>
+        <input id="tQ" placeholder="搜尋 Email 或內容" style="width:200px"><button class="btn sm" id="tGo">查詢</button>
+      </div>
+      <div id="tList"></div>
+    </section>
+
+    <section class="pane" id="p-svcs">
+      <div class="notice info small">每個服務是一個網站。<b>新增服務</b>：填好下面的表單 → 儲存 → 把「hook 密碼」設定到那個網站（只有「通知網站出貨」需要）→ 新增商品。
+        網站要做的事：按「購買」時呼叫 <code>POST <span class="origin"></span>/api/checkout/start</code>（帶 Firebase 登入憑證，內容 <code>{"service":"代號","sku":"商品代號"}</code>），拿到 <code>url</code> 後整頁跳過去。詳細寫法看 README。</div>
+      <div id="svcList"></div>
+      <button class="btn primary" id="addSvc">＋ 新增服務</button>
+    </section>
+
+    <section class="pane" id="p-ents">
+      <p class="small muted">「總店記錄權限」的服務（例如語音轉文字）付費版記在這裡。手動開通、延長、收回都在這裡做。其他服務的權限記在它們自己的後台。</p>
+      <div class="card" style="margin-bottom:14px">
+        <div class="row"><select id="eSvc"></select><input id="eEmail" placeholder="對方的 Email" style="width:240px"><input id="eDays" type="number" placeholder="加幾天" style="width:100px" value="31">
+          <label class="small"><input type="checkbox" id="eLife"> 永久</label><input id="eNote" placeholder="備註（例如：補償、學校採購）" style="width:220px"><button class="btn primary sm" id="eGo">開通／延長</button></div>
+        <div class="hint">對方要先登入過那個服務、按過一次「升級」或在客服留過言，才找得到帳號。</div>
+      </div>
+      <div class="filters"><input id="eQ" placeholder="搜尋 Email" style="width:220px"><button class="btn sm" id="eSearch">查詢</button></div>
+      <div class="tablebox"><table class="t"><thead><tr><th>服務</th><th>Email</th><th>付費版</th><th>到期日</th><th>更新時間</th><th></th></tr></thead><tbody id="eList"></tbody></table></div>
+    </section>
+
+    <section class="pane" id="p-log">
+      <div class="tablebox"><table class="t"><thead><tr><th>時間</th><th>誰</th><th>動作</th><th>對象</th><th>備註</th></tr></thead><tbody id="lList"></tbody></table></div>
+    </section>
+  </div>
+</main>
+<div class="viewer" id="viewer"><img alt=""></div>
+<footer></footer>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="js/config.js"></script><script src="js/shop.js"></script>
+<script>
+Shop.header('');
+const { esc, money, fmt, toast } = Shop, $ = id => document.getElementById(id);
+const A = (action, body = {}) => Shop.api('/api/admin/' + action, body);
+let SV = [], PR = [], SUM = null;
+const sname = id => { const s = SV.find(x => x.id === id); return s ? `${s.icon || ''} ${s.name}` : id; };
+const OST = { created: ['未付款', 'gray'], waiting: ['等待繳費', 'warn'], paid: ['已付款', 'ok'], failed: ['失敗', 'bad'], refunded: ['已退款', 'gray'], amount_mismatch: ['金額不符', 'bad'], simulated: ['模擬付款', 'gray'] };
+const FST = { done: ['已出貨', 'ok'], failed: ['出貨失敗', 'bad'], pending: ['待出貨', 'warn'] };
+const pill = (m, k) => { const [l, c] = m[k] || [k || '', 'gray']; return `<span class="pill ${c}">${esc(l)}</span>`; };
+
+/* ---------- 登入 ---------- */
+Shop.ready.then(async u => {
+  if (!u) { $('gate').innerHTML = '<p>請用管理員的 Google 帳號登入。</p><button class="btn primary" id="lg">用 Google 登入</button>'; $('lg').onclick = () => Shop.signIn().then(x => x && location.reload()).catch(e => e.message !== '已取消登入' && alert(e.message)); return; }
+  try { await loadDash(); } catch (e) { $('gate').innerHTML = `<div class="notice bad">${esc(e.message)}</div><p class="small muted">登入的帳號：${esc(u.email)}・<a href="#" onclick="Shop.signOut();return false">換一個帳號</a></p>`; return; }
+  $('gate').hidden = true; $('app').hidden = false; $('me').textContent = u.email;
+  await loadSvcs();
+  const h = location.hash.slice(1); if (TABS[h]) document.querySelector(`#tabs [data-p="${h}"]`).click();
+});
+$('out').onclick = e => { e.preventDefault(); Shop.signOut(); };
+$('ecCheck').onclick = async () => {
+  const r = await A('ecpay-check').catch(e => ({ result: 'error', code: e.message }));
+  const m = { ok: '✅ 綠界金鑰正確', badkey: '❌ HashKey／HashIV 不對（檢查碼錯誤）', badmerchant: '❌ 商店代號不對，或這個環境沒有這個商店', missing: '❌ 還沒設定綠界金鑰（Cloudflare 祕密）', unreachable: '⚠️ 連不上綠界', unknown: '⚠️ 看不懂綠界的回覆' };
+  alert(`${r.mode === 'production' ? '正式收款' : '測試環境'}：${m[r.result] || r.result}${r.code ? '\n（' + r.code + '）' : ''}`);
+};
+const TABS = { dash: loadDash, orders: loadOrders, tickets: loadTickets, svcs: () => loadSvcs().then(paintSvcs), ents: loadEnts, log: loadLog };
+$('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b)); document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + b.dataset.p)); history.replaceState(null, '', '#' + b.dataset.p); TABS[b.dataset.p]().catch(er => toast(er.message)); };
+
+/* ---------- 總覽 ---------- */
+async function loadDash() {
+  SUM = await A('summary');
+  $('mode').innerHTML = SUM.mode === 'production' ? '<b style="color:var(--ok)">正式收款</b>' : '<b style="color:var(--warn)">測試環境</b>（wrangler.toml 的 ECPAY_MODE）';
+  const tot = SUM.sales.reduce((a, s) => ({ n: a.n + s.n, amount: a.amount + s.amount }), { n: 0, amount: 0 });
+  const un = SUM.unread.reduce((n, x) => n + x.n, 0);
+  $('tiles').innerHTML = [['本月營收', money(tot.amount), `${tot.n} 筆`], ['未讀客服＋許願', un, '所有服務'], ['出貨失敗', SUM.fulfill_failed, '每 10 分鐘自動重試'], ['等待繳費', SUM.waiting, 'ATM 取號後還沒轉帳']]
+    .map(([k, v, s]) => `<div class="card tile"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`).join('');
+  $('cntT').hidden = !un; $('cntT').textContent = un; $('cntO').hidden = !SUM.fulfill_failed; $('cntO').textContent = SUM.fulfill_failed;
+  $('svcSales').innerHTML = SUM.services.map(s => { const sl = SUM.sales.find(x => x.service_id === s.id) || { n: 0, amount: 0 }; const u = t => (SUM.unread.find(x => x.service_id === s.id && x.type === t) || {}).n || 0;
+    return `<tr class="${s.active ? '' : 'dim'}"><td>${esc(s.icon || '')} ${esc(s.name)}${s.active ? '' : '（已停用）'}</td><td class="n">${sl.n}</td><td class="n">${money(sl.amount)}</td><td class="n">${u('bug') || ''}</td><td class="n">${u('wish') || ''}</td>
+      <td>${s.admin_url ? `<a href="${esc(s.admin_url)}" target="_blank" rel="noopener">打開 ↗</a>` : '<span class="muted small">在總店「付費權限」</span>'}</td></tr>`; }).join('');
+  $('recent').innerHTML = SUM.recent.map(o => `<tr><td>${fmt(o.created_at)}</td><td>${esc(sname(o.service_id))}</td><td>${esc(o.product_name)}</td><td class="n">${money(o.amount)}</td><td>${pill(OST, o.status)}</td><td>${o.status === 'paid' ? pill(FST, o.fulfill) : ''}</td><td>${esc(o.email)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">還沒有訂單</td></tr>';
+  SV = SUM.services.length ? SV.length ? SV : SUM.services : SV;
+}
+
+/* ---------- 服務清單（下拉選單） ---------- */
+async function loadSvcs() {
+  const r = await A('services'); SV = r.services; PR = r.products; window._origin = r.origin; window._hubProject = r.hub_project;
+  document.querySelectorAll('.origin').forEach(e => e.textContent = r.origin);
+  const opts = SV.map(s => `<option value="${esc(s.id)}">${esc(s.icon || '')} ${esc(s.name)}</option>`).join('');
+  for (const id of ['oSvc', 'tSvc']) { const v = $(id).value; $(id).innerHTML = '<option value="">全部服務</option>' + opts; $(id).value = v; }
+  const hubs = SV.filter(s => s.mode === 'hub'); $('eSvc').innerHTML = hubs.map(s => `<option value="${esc(s.id)}">${esc(s.icon || '')} ${esc(s.name)}</option>`).join('') || '<option value="">（沒有總店記錄權限的服務）</option>';
+}
+
+/* ---------- 訂單 ---------- */
+async function loadOrders() {
+  const { orders } = await A('orders', { service: $('oSvc').value, status: $('oSt').value, env: $('oEnv').value, q: $('oQ').value.trim() });
+  $('oList').innerHTML = orders.map(o => `<tr>
+    <td>${fmt(o.created_at)}${o.mode !== (SUM && SUM.mode) ? '<br><span class="pill gray">測試</span>' : ''}</td><td class="mono small">${esc(o.no)}</td>
+    <td>${esc(sname(o.service_id))}<br><span class="small muted">${esc(o.product_name)}</span></td><td class="n">${money(o.amount)}</td>
+    <td>${pill(OST, o.status)}${o.rtn_msg && o.status !== 'paid' ? `<br><span class="small muted">${esc(o.rtn_msg)}</span>` : ''}${o.note ? `<br><span class="small muted">${esc(o.note)}</span>` : ''}</td>
+    <td>${o.status === 'paid' || o.status === 'refunded' ? pill(FST, o.fulfill) : ''}${o.fulfill_error && o.fulfill !== 'done' ? `<br><span class="small" style="color:var(--bad)">${esc(o.fulfill_error)}</span>` : ''}</td>
+    <td>${esc(o.payment_type || '')}</td><td class="small">${esc(o.email)}<br><span class="muted mono">${esc(o.uid)}</span></td>
+    <td>${o.status === 'paid' ? `${o.fulfill !== 'done' ? `<button class="btn sm" data-rf="${esc(o.no)}">重新出貨</button> ` : ''}<button class="btn sm danger" data-rd="${esc(o.no)}">標記已退款</button>` : ''}
+      ${['created', 'waiting', 'failed', 'amount_mismatch'].includes(o.status) ? `<button class="btn sm" data-mp="${esc(o.no)}">手動標記已付款</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">沒有訂單</td></tr>';
+  $('oList').querySelectorAll('[data-rf]').forEach(b => b.onclick = async () => { b.disabled = true; try { await A('refulfill', { no: b.dataset.rf }); toast('已重新出貨'); loadOrders(); } catch (e) { toast(e.message); b.disabled = false; } });
+  $('oList').querySelectorAll('[data-rd]').forEach(b => b.onclick = async () => {
+    const note = prompt(`訂單 ${b.dataset.rd}\n請先在綠界後台完成退款，再按確定。\n會通知服務收回這筆訂單給的東西。\n備註（例如：全額退款）：`); if (note === null) return;
+    try { const r = await A('refund', { no: b.dataset.rd, note }); toast(r.revoked === 'failed' ? '已標記退款，但收回失敗：' + r.error + '（請到該服務的後台手動收回）' : '已標記退款，並收回權限'); loadOrders(); } catch (e) { toast(e.message); } });
+  $('oList').querySelectorAll('[data-mp]').forEach(b => b.onclick = async () => {
+    const note = prompt(`訂單 ${b.dataset.mp}\n只有在「綠界後台確認已經入帳」但系統沒收到通知時才使用。\n確定要標記已付款並出貨嗎？備註：`); if (note === null) return;
+    try { await A('mark-paid', { no: b.dataset.mp, note }); toast('已標記付款並出貨'); loadOrders(); } catch (e) { toast(e.message); } });
+}
+$('oGo').onclick = () => loadOrders().catch(e => toast(e.message));
+for (const id of ['oSvc', 'oSt', 'oEnv']) $(id).onchange = () => loadOrders().catch(e => toast(e.message));
+
+/* ---------- 客服・許願池 ---------- */
+let TK = [];
+async function loadTickets() {
+  TK = (await A('tickets', { service: $('tSvc').value, type: $('tType').value, status: $('tSt').value, q: $('tQ').value.trim() })).tickets;
+  const ST = { open: ['等待回覆', 'warn'], replied: ['已回覆', 'ok'], closed: ['已結案', 'gray'] };
+  $('tList').innerHTML = TK.map(t => `<div class="tk ${t.admin_unread ? 'unread' : ''}" data-id="${esc(t.id)}">
+    <div class="hd"><span><span class="pill">${esc(sname(t.service))}</span> ${t.type === 'wish' ? '🌠 許願' : '💬 客服'}・<b>${esc(t.email || '(沒有 Email)')}</b> ${esc(t.name || '')}・${fmt(t.created_at)}${t.source === 'import' ? '・<span class="muted">舊訊息搬過來的</span>' : ''}</span>${pill(ST, t.status)}</div>
+    <div class="tx">${esc(t.text)}</div>${t.price != null ? `<div class="small" style="color:var(--accent)">願意花 NT$${esc(t.price)}</div>` : ''}
+    ${t.image_count ? `<div class="shots">${Array.from({ length: t.image_count }, (_, n) => `<div class="im" data-img="${esc(t.id)}" data-n="${n}">截圖 ${n + 1}<br>點一下載入</div>`).join('')}</div>` : ''}
+    ${t.thread.map(m => `<div class="msg ${m.by === 'admin' ? 'admin' : ''}"><small>${m.by === 'admin' ? '🧑‍💻 我的回覆' : '使用者補充'}・${fmt(m.at)}</small>${esc(m.text)}</div>`).join('')}
+    <div class="small muted" style="margin-top:6px">${esc(t.device || '')}</div>
+    <textarea placeholder="回覆給使用者（對方打開客服・許願池就會看到）" maxlength="1000" style="margin-top:8px"></textarea>
+    <div class="row" style="margin-top:6px"><button class="btn primary sm" data-a="reply">回覆</button><button class="btn sm" data-a="replyclose">回覆並結案</button>
+      ${t.admin_unread ? '<button class="btn sm" data-a="seen">標記已讀</button>' : ''}${t.status !== 'closed' ? '<button class="btn sm" data-a="close">結案</button>' : '<button class="btn sm" data-a="open">重新打開</button>'}
+      <button class="btn sm danger" data-a="del">刪除</button></div></div>`).join('') || '<p class="muted">沒有訊息</p>';
+  $('tList').querySelectorAll('[data-a]').forEach(b => b.onclick = () => ticketAct(b.closest('.tk'), b.dataset.a, b));
+  $('tList').querySelectorAll('[data-img]').forEach(el => el.onclick = async () => {
+    if (el.dataset.d) { $('viewer').querySelector('img').src = el.dataset.d; $('viewer').classList.add('on'); return; }
+    try { const d = (await A('ticket-image', { id: el.dataset.img, n: +el.dataset.n })).data; el.dataset.d = d; el.innerHTML = `<img src="${d}" alt="">`; } catch (e) { toast(e.message); } });
+}
+$('viewer').onclick = () => $('viewer').classList.remove('on');
+async function ticketAct(el, a, btn) {
+  const id = el.dataset.id, text = el.querySelector('textarea').value.trim();
+  if ((a === 'reply' || a === 'replyclose') && !text) return toast('請先輸入回覆');
+  if (a === 'del' && !confirm('確定刪除這則訊息？刪除後使用者也看不到。')) return;
+  btn.disabled = true;
+  try {
+    if (a === 'del') await A('ticket-delete', { id });
+    else if (a === 'seen') await A('ticket', { id });
+    else if (a === 'close' || a === 'open') await A('ticket', { id, status: a === 'open' ? 'open' : 'closed' });
+    else await A('ticket', { id, text, close: a === 'replyclose' });
+    await loadTickets(); toast('完成');
+  } catch (e) { btn.disabled = false; toast(e.message); }
+}
+$('tGo').onclick = () => loadTickets().catch(e => toast(e.message));
+for (const id of ['tSvc', 'tType', 'tSt']) $(id).onchange = () => loadTickets().catch(e => toast(e.message));
+
+/* ---------- 服務與商品 ---------- */
+const MODE_TXT = { webhook: '通知網站出貨（網站有自己的後端，例如 AR 寵物、PDF 編輯器）', hub: '總店記錄權限（網站沒有後端，網站來總店查，例如語音轉文字）' };
+function svcForm(s = {}) {
+  const v = k => esc(s[k] ?? ''), isNew = !s.id;
+  return `<div class="grid2">
+    <label class="f"><span>服務代號（英文小寫，建立後不能改）</span><input name="id" value="${v('id')}" ${isNew ? '' : 'readonly'} placeholder="例如 chilong"></label>
+    <label class="f"><span>名稱</span><input name="name" value="${v('name')}" placeholder="例如 吃龍殺手"></label>
+    <label class="f"><span>圖示（一個 emoji）</span><input name="icon" value="${v('icon')}" placeholder="🐉"></label>
+    <label class="f"><span>排序（小的排前面）</span><input name="sort" type="number" value="${v('sort') || 100}"></label>
+    <label class="f" style="grid-column:1/-1"><span>一句話介紹</span><input name="tagline" value="${v('tagline')}"></label>
+    <label class="f" style="grid-column:1/-1"><span>介紹（總店首頁顯示）</span><textarea name="description" style="min-height:60px">${v('description')}</textarea></label>
+    <label class="f"><span>網站網址</span><input name="url" value="${v('url')}" placeholder="https://…"></label>
+    <label class="f"><span>購買頁網址（總店首頁的「購買」按鈕連到這裡）</span><input name="buy_url" value="${v('buy_url')}"></label>
+    <label class="f"><span>付款完回到哪裡（會自動加上 ?order=訂單編號）</span><input name="return_url" value="${v('return_url')}"></label>
+    <label class="f"><span>服務自己的管理後台（可以不填）</span><input name="admin_url" value="${v('admin_url')}"></label>
+    <label class="f"><span>登入用的 Firebase 專案 ID</span><input name="firebase_project" value="${v('firebase_project')}" placeholder="${esc(window._hubProject || '')}"><div class="hint">新服務建議跟總店共用 <code>${esc(window._hubProject || '')}</code>，同一個人在各服務就是同一個帳號</div></label>
+    <label class="f"><span>出貨方式</span><select name="mode">${Object.entries(MODE_TXT).map(([k, t]) => `<option value="${k}" ${s.mode === k || (!s.mode && k === 'hub') ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+    <label class="f" style="grid-column:1/-1"><span>hook 網址（「通知網站出貨」才要填）</span><input name="hook_url" value="${v('hook_url')}" placeholder="https://你的網站/api/shop/hook"></label>
+    <label class="f"><span><input type="checkbox" name="active" ${s.active === false ? '' : 'checked'}> 上架中（取消勾選＝首頁不顯示、不能買）</span></label>
+  </div>`;
+}
+function prodRow(p, sid) {
+  const v = k => esc(p[k] ?? '');
+  return `<tr data-sku="${v('sku')}"><td><input name="code" value="${v('code')}" ${p.sku ? 'readonly' : ''} style="width:110px" placeholder="pro_m"></td><td><input name="name" value="${v('name')}" style="width:170px"></td>
+    <td><input name="price" type="number" value="${v('price')}" style="width:80px"></td><td><textarea name="grant" style="min-height:38px;width:190px" class="mono">${esc(p.grant_json || '')}</textarea></td>
+    <td><select name="pay"><option value="ALL" ${p.pay !== 'Credit' ? 'selected' : ''}>信用卡＋ATM</option><option value="Credit" ${p.pay === 'Credit' ? 'selected' : ''}>只收信用卡</option></select></td>
+    <td><input name="tag" value="${v('tag')}" style="width:80px"></td><td><textarea name="description" style="min-height:38px;width:220px">${v('description')}</textarea></td>
+    <td><input name="sort" type="number" value="${p.sort ?? 100}" style="width:60px"></td><td><input type="checkbox" name="active" ${p.active === false ? '' : 'checked'}></td>
+    <td><button class="btn sm primary" data-ps="${esc(sid)}">儲存</button></td></tr>`;
+}
+function paintSvcs() {
+  $('svcList').innerHTML = SV.map(s => `<details class="card svcard" data-id="${esc(s.id)}"><summary><span style="font-size:1.6rem">${esc(s.icon || '✨')}</span>
+      <div><b>${esc(s.name)}</b> <span class="pill ${s.active ? 'ok' : 'gray'}">${s.active ? '上架中' : '已停用'}</span> <span class="pill">${s.mode === 'hub' ? '總店記錄權限' : '通知網站出貨'}</span><div class="small muted">代號 <code>${esc(s.id)}</code>・${PR.filter(p => p.service_id === s.id).length} 個商品・${esc(s.url || '')}</div></div></summary>
+    <form data-svc>${svcForm(s)}<div class="row"><button class="btn primary sm" type="submit">儲存服務設定</button>${s.mode === 'webhook' ? `<button class="btn sm" type="button" data-test="${esc(s.id)}">測試 hook 連線</button><button class="btn sm" type="button" data-imp="${esc(s.id)}">把舊的客服・許願池訊息搬過來</button>` : ''}</div></form>
+    ${s.mode === 'webhook' ? `<h3 style="margin-top:16px">hook 密碼</h3><div class="secret"><code data-sec>••••••••••••••••</code><button class="btn sm" type="button" data-show>顯示</button><button class="btn sm" type="button" data-copy>複製</button><button class="btn sm danger" type="button" data-reset="${esc(s.id)}">重新產生</button></div>
+      <div class="hint">到這個網站的 Cloudflare Worker → 設定 → 變數和祕密，新增祕密 <code>SHOP_HOOK_SECRET</code>，貼上這串。兩邊一樣，總店的出貨通知才會被接受。</div>` : ''}
+    <h3 style="margin-top:16px">商品</h3>
+    <div class="hint" style="margin-bottom:6px">「付款後給什麼」是 JSON：${s.mode === 'hub' ? '<code>{"pro_days":31}</code> 付費版 31 天、<code>{"lifetime":true}</code> 永久' : s.id === 'pdf' ? '<code>{"pro_days":31}</code> 進階版天數、<code>{"credits":300,"credit_days":365}</code> 簽名份數' : s.id === 'arpet' ? '<code>{"product":"food_5"}</code>＝js/catalog.js 的商品 ID（AR 寵物自己決定給什麼）' : '由網站的 hook 自己解讀'}。改價格存檔後馬上生效。</div>
+    <div class="tablebox"><table class="t" style="min-width:1100px"><thead><tr><th>商品代號</th><th>名稱</th><th>價格</th><th>付款後給什麼</th><th>付款方式</th><th>標籤</th><th>說明</th><th>排序</th><th>上架</th><th></th></tr></thead>
+      <tbody>${PR.filter(p => p.service_id === s.id).map(p => prodRow(p, s.id)).join('')}${prodRow({ grant_json: s.mode === 'hub' ? '{"pro_days":31}' : '{}' }, s.id)}</tbody></table></div>
+  </details>`).join('');
+  const box = $('svcList');
+  box.querySelectorAll('form[data-svc]').forEach(f => f.onsubmit = e => { e.preventDefault(); saveSvc(f); });
+  box.querySelectorAll('[data-ps]').forEach(b => b.onclick = () => saveProd(b.closest('tr'), b.dataset.ps, b));
+  box.querySelectorAll('[data-test]').forEach(b => b.onclick = async () => { b.disabled = true; const r = await A('hook-test', { id: b.dataset.test }).catch(e => ({ error: e.message })); b.disabled = false;
+    alert(r.ok ? '✅ 連線成功，網站認得總店的簽章' : '❌ 連線失敗：' + (r.error || JSON.stringify(r.reply)) + '\n\n請確認：網站已經部署新版程式、SHOP_HOOK_SECRET 跟這裡的 hook 密碼一樣、hook 網址正確。'); });
+  box.querySelectorAll('[data-imp]').forEach(b => b.onclick = () => importTickets(b.dataset.imp, b));
+  box.querySelectorAll('details').forEach(d => {
+    const s = SV.find(x => x.id === d.dataset.id), code = d.querySelector('[data-sec]'); if (!code) return;
+    d.querySelector('[data-show]').onclick = () => { code.textContent = code.textContent.startsWith('•') ? s.secret : '••••••••••••••••'; };
+    d.querySelector('[data-copy]').onclick = () => navigator.clipboard.writeText(s.secret).then(() => toast('已複製 hook 密碼'));
+    d.querySelector('[data-reset]').onclick = async () => { if (!confirm('重新產生後，舊密碼馬上失效，要到網站的 Cloudflare 更新 SHOP_HOOK_SECRET 才會恢復出貨。確定？')) return; await A('service-secret', { id: s.id }); await loadSvcs(); paintSvcs(); toast('已重新產生，記得更新網站的祕密'); };
+  });
+}
+async function saveSvc(f) {
+  const x = {}; for (const el of f.elements) if (el.name) x[el.name] = el.type === 'checkbox' ? el.checked : el.value;
+  try { const r = await A('service-save', x); toast(r.created ? '已新增服務，接著新增商品' : '已儲存'); await loadSvcs(); paintSvcs(); const d = document.querySelector(`details[data-id="${x.id}"]`); if (d) d.open = true; } catch (e) { toast(e.message); }
+}
+async function saveProd(tr, sid, b) {
+  const x = { service: sid }; tr.querySelectorAll('[name]').forEach(el => x[el.name] = el.type === 'checkbox' ? el.checked : el.value);
+  b.disabled = true;
+  try { await A('product-save', x); toast('商品已儲存'); await loadSvcs(); paintSvcs(); const d = document.querySelector(`details[data-id="${sid}"]`); if (d) d.open = true; } catch (e) { toast(e.message); b.disabled = false; }
+}
+async function importTickets(id, b) {
+  if (!confirm('把這個服務舊後台裡的客服・許願池訊息（含回覆）複製到總店。已經搬過的不會重複。要開始嗎？')) return;
+  b.disabled = true; let cursor = null, n = 0;
+  try { do { b.textContent = `搬移中…已 ${n} 則`; const r = await A('import-tickets', { service: id, cursor }); n += r.got; cursor = r.next; } while (cursor); toast(`完成，共讀到 ${n} 則`); }
+  catch (e) { toast('搬移中斷：' + e.message + '（再按一次會從頭檢查，不會重複）'); }
+  b.disabled = false; b.textContent = '把舊的客服・許願池訊息搬過來';
+}
+$('addSvc').onclick = () => {
+  if (document.getElementById('newSvc')) return;
+  $('svcList').insertAdjacentHTML('beforeend', `<div class="card svcard" id="newSvc"><h3>新增服務</h3><form data-new>${svcForm({})}<button class="btn primary sm" type="submit">建立服務</button></form></div>`);
+  document.querySelector('form[data-new]').onsubmit = e => { e.preventDefault(); saveSvc(e.target); };
+  document.getElementById('newSvc').scrollIntoView({ behavior: 'smooth' });
+};
+
+/* ---------- 權限（總店記錄的） ---------- */
+async function loadEnts() {
+  const { entitlements } = await A('entitlements', { q: $('eQ').value.trim() });
+  $('eList').innerHTML = entitlements.map(e => `<tr><td>${esc(sname(e.service_id))}</td><td>${esc(e.email)}<br><span class="small muted mono">${esc(e.uid)}</span></td>
+    <td>${e.pro ? '<span class="pill ok">付費版</span>' : '<span class="pill gray">免費版</span>'}</td><td>${e.lifetime ? '永久' : fmt(e.pro_until, false)}</td><td>${fmt(e.updated_at)}</td>
+    <td><button class="btn sm danger" data-rv='${esc(JSON.stringify({ service: e.service_id, project: e.project, uid: e.uid }))}'>收回</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">沒有資料</td></tr>';
+  $('eList').querySelectorAll('[data-rv]').forEach(b => b.onclick = async () => { const note = prompt('收回付費版（到期日改成現在）。備註：'); if (note === null) return;
+    try { await A('entitlement-set', { ...JSON.parse(b.dataset.rv), pro_until: Date.now(), lifetime: false, note }); toast('已收回'); loadEnts(); } catch (e) { toast(e.message); } });
+}
+$('eSearch').onclick = () => loadEnts().catch(e => toast(e.message));
+$('eGo').onclick = async () => {
+  try { const r = await A('entitlement-set', { service: $('eSvc').value, email: $('eEmail').value.trim(), add_days: +$('eDays').value || 0, lifetime: $('eLife').checked || undefined, note: $('eNote').value });
+    toast(r.entitlement.plan === 'pro' ? '已開通：' + (r.entitlement.lifetime ? '永久' : '到 ' + fmt(r.entitlement.pro_until, false)) : '已更新'); loadEnts(); } catch (e) { toast(e.message); }
+};
+
+/* ---------- 紀錄 ---------- */
+async function loadLog() {
+  const { log } = await A('log');
+  $('lList').innerHTML = log.map(l => `<tr><td>${fmt(l.at)}</td><td>${esc(l.by_email)}</td><td>${esc(l.action)}</td><td class="mono small">${esc(l.ref)}</td><td>${esc(l.note)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">沒有紀錄</td></tr>';
+}
+</script>
+</body>
+</html>

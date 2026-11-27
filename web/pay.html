@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>結帳｜wingfeeling 數位商店</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/shop.css">
+</head>
+<body>
+<header id="top"></header>
+<main class="wrap narrow">
+  <h1>結帳</h1>
+  <div id="box"><p class="muted"><span class="spin"></span> 讀取中…</p></div>
+</main>
+<footer></footer>
+<script src="js/config.js"></script><script src="js/shop.js"></script>
+<script>
+Shop.header('');
+const { esc, money } = Shop, box = document.getElementById('box');
+const s = new URLSearchParams(location.search).get('s') || '';
+let S = null, pick = '';
+function paint() {
+  const p = S.products.find(x => x.sku === pick);
+  box.innerHTML = `
+    ${S.mode === 'stage' ? '<div class="notice warn">🧪 綠界<b>測試環境</b>：不會真的扣款。付款頁請用測試卡號 <code>4311-9522-2222-2222</code>、安全碼 <code>222</code>，有效期限填今天以後的月份。</div>' : ''}
+    <div class="card">
+      <div class="row" style="gap:14px"><div class="svc" style="margin:0;box-shadow:none;border:0;background:none;padding:0"><div class="ic">${esc(S.service.icon || '✨')}</div></div>
+        <div><h3 style="margin:0">${esc(S.service.name)}</h3><div class="small muted">購買帳號：<b>${esc(S.email || '（沒有 Email）')}</b></div></div></div>
+      <h3 style="margin-top:18px">選擇商品</h3>
+      ${S.products.map(x => `<label class="choice ${x.sku === pick ? 'on' : ''}"><input type="radio" name="p" value="${esc(x.sku)}" ${x.sku === pick ? 'checked' : ''}>
+        <div class="t"><div>${esc(x.name)} ${x.tag ? `<span class="pill gold">${esc(x.tag)}</span>` : ''}</div><div>${esc(x.description || '')}${x.pay === 'Credit' ? '（只收信用卡）' : ''}</div></div>
+        <b style="white-space:nowrap">${money(x.price)}</b></label>`).join('')}
+      <div class="sum"><span>應付金額</span><span class="amt">${p ? money(p.price) : '—'}</span></div>
+      <label class="agree"><input type="checkbox" id="ok">
+        <span>我已閱讀並同意<a href="terms.html" target="_blank">購買須知與退款政策</a>。我了解這是<b>線上提供的數位內容</b>，付款成功後會立即開通到上面的帳號，開通後依法不適用七天猶豫期（退款規定請見購買須知）。</span></label>
+      <button class="btn primary big" id="go" style="width:100%" disabled>前往綠界付款</button>
+      <div id="err" class="small" style="color:var(--bad);min-height:1.5em;margin-top:8px"></div>
+      <p class="small muted" style="margin:6px 0 0">🔒 付款頁由<b>綠界科技 ECPay</b> 提供，本店不會取得你的信用卡號碼。付款完成後會自動回到「${esc(S.service.name)}」。</p>
+    </div>
+    <p class="small muted">賣家：wingfeeling 數位商店（個人經營）・客服：<a href="mailto:${esc(Shop.config.supportEmail)}">${esc(Shop.config.supportEmail)}</a>・<a href="${esc(S.service.url)}">不買了，回到 ${esc(S.service.name)}</a></p>`;
+  box.querySelectorAll('input[name=p]').forEach(r => r.onchange = () => { pick = r.value; paint(); });
+  const ok = document.getElementById('ok'), go = document.getElementById('go');
+  ok.checked = !!window._agreed;
+  const sync = () => { window._agreed = ok.checked; go.disabled = !(ok.checked && p); go.textContent = p ? `前往綠界付款 ${money(p.price)}` : '請先選擇商品'; };
+  ok.onchange = sync; sync();
+  go.onclick = pay;
+}
+async function pay() {
+  const go = document.getElementById('go'), err = document.getElementById('err');
+  go.disabled = true; go.innerHTML = '<span class="spin"></span> 建立訂單中…'; err.textContent = '';
+  try {
+    const r = await Shop.api('/api/checkout/pay', { s, sku: pick, agree: true });
+    try { sessionStorage.setItem('shop.lastOrder', r.order); } catch {}
+    const f = document.createElement('form'); f.method = 'POST'; f.action = r.action; f.acceptCharset = 'UTF-8'; f.style.display = 'none';
+    for (const [k, v] of Object.entries(r.params)) { const i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = v; f.append(i); }
+    document.body.append(f); go.textContent = '正在前往綠界付款頁…'; f.submit();
+  } catch (e) { err.textContent = e.message; go.disabled = false; go.textContent = '再試一次'; }
+}
+Shop.api('/api/checkout/session?s=' + encodeURIComponent(s)).then(d => {
+  S = d; pick = d.sku && d.products.some(p => p.sku === d.sku) ? d.sku : (d.products.length === 1 ? d.products[0].sku : '');
+  document.title = `結帳：${d.service.name}｜wingfeeling 數位商店`;
+  if (!d.products.length) { box.innerHTML = '<div class="notice bad">這個服務目前沒有販售中的商品。</div>'; return; }
+  paint();
+}).catch(e => { box.innerHTML = `<div class="notice bad">${esc(e.message)}</div><p><a class="btn" href="index.html">看全部商品</a></p>`; });
+</script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>客服・許願池｜wingfeeling 數位商店</title>
+<link rel="stylesheet" href="css/shop.css">
+</head>
+<body>
+<header id="top"></header>
+<main class="wrap narrow">
+  <h1 id="title">客服・許願池</h1>
+  <p class="muted">所有服務共用的客服和許願池。付款、開通、使用上的問題，或希望多什麼功能，都可以在這裡留言，回覆會顯示在下面。</p>
+  <div class="tabs" id="tabs"><button data-t="bug">💬 客服・問題回報<span class="cnt" id="ndBug" hidden>新</span></button><button data-t="wish">🌠 許願池<span class="cnt" id="ndWish" hidden>新</span></button></div>
+  <div class="card">
+    <div id="intro"></div>
+    <div id="loginBox" hidden style="margin-top:12px"><p>要先用 Google 帳號登入，才能送出訊息、看到回覆。</p><button class="btn primary" id="loginBtn">用 Google 登入</button></div>
+    <div id="form" hidden>
+      <label class="f"><span>是哪個服務？</span><select id="svc"></select></label>
+      <label class="f"><span id="lbl"></span><textarea id="text" maxlength="2000"></textarea></label>
+      <div class="small muted" style="text-align:right" id="count">0 / 2000</div>
+      <div id="priceBox"><label class="f"><span>如果這個願望實現，你願意花多少錢使用？（可以不填，只是參考，不會收費）</span>
+        <div class="row"><span>NT$</span><input id="price" type="number" inputmode="numeric" min="0" max="100000" step="1" placeholder="例如 30" style="width:150px"></div></label></div>
+      <div id="shotBox"><label class="f"><span>附上截圖（最多 3 張，可以不附）</span><input type="file" id="file" accept="image/*" multiple></label><div class="shots" id="shots"></div></div>
+      <button class="btn primary" id="send" style="margin-top:12px">送出</button>
+      <div class="small" id="err" style="min-height:1.5em;margin-top:8px;color:var(--bad)"></div>
+      <p class="small muted" style="margin:0">已登入：<b id="who"></b>・<a href="#" id="out">登出</a></p>
+    </div>
+  </div>
+  <h2 id="histTitle"></h2>
+  <div id="list"></div>
+</main>
+<div class="viewer" id="viewer"><img alt=""></div>
+<footer></footer>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="js/config.js"></script><script src="js/shop.js"></script>
+<script>
+Shop.header('support.html');
+const { esc } = Shop, $ = id => document.getElementById(id), q = new URLSearchParams(location.search);
+const TK = {
+  bug: { intro: '遇到問題、付款後沒有開通，都可以在這裡告訴我。寫得越詳細（哪個服務、用什麼手機或瀏覽器、按了什麼、出現什麼訊息）越快找到原因。付款問題請附上訂單編號。', label: '請描述遇到的問題', ph: '例如：付款成功了，但 PDF 編輯器還是顯示免費版，訂單編號 W2611…', hist: '我送出的問題', empty: '還沒有送出過問題。', send: '送出' },
+  wish: { intro: '希望哪個服務多什麼功能、或想要一個新的服務？請寫下你的願望，我會盡力完成。', label: '你的願望', ph: '例如：希望語音轉文字可以自動分段、標出講話的人…', hist: '我許過的願望', empty: '還沒有許過願望。', send: '🌠 送出願望' },
+};
+const ST = { open: ['等待回覆', 'warn'], replied: ['已回覆', 'ok'], closed: ['已結案', 'gray'] };
+let type = q.get('t') === 'wish' ? 'wish' : 'bug', tickets = null, svcs = [], imgs = [], busy = false;
+function paint() {
+  const c = TK[type];
+  $('intro').innerHTML = esc(c.intro) + `<div class="small muted" style="margin-top:6px">${esc(Shop.config.ownerNote)} 也可以來信 <a href="mailto:${esc(Shop.config.supportEmail)}">${esc(Shop.config.supportEmail)}</a>。</div>`;
+  $('lbl').textContent = c.label; $('text').placeholder = c.ph; $('histTitle').textContent = c.hist; $('send').textContent = c.send;
+  $('priceBox').hidden = type !== 'wish'; $('shotBox').hidden = type !== 'bug';
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === type));
+  $('loginBox').hidden = !!Shop.user; $('form').hidden = !Shop.user;
+  if (Shop.user) $('who').textContent = Shop.user.email || Shop.user.displayName || '';
+  $('ndBug').hidden = !tickets?.some(t => t.type === 'bug' && t.user_unread); $('ndWish').hidden = !tickets?.some(t => t.type === 'wish' && t.user_unread);
+  $('shots').innerHTML = imgs.map((d, i) => `<div class="im"><img src="${d}" alt="截圖 ${i + 1}" data-rm="${i}" title="點一下移除"></div>`).join('');
+  $('shots').querySelectorAll('[data-rm]').forEach(im => im.onclick = () => { imgs.splice(+im.dataset.rm, 1); paint(); });
+  const list = $('list');
+  if (!Shop.user) { list.innerHTML = '<p class="muted small">登入後會看到你送出過的訊息和回覆。</p>'; return; }
+  if (!tickets) { list.innerHTML = '<p class="muted small"><span class="spin"></span> 讀取中…</p>'; return; }
+  const mine = tickets.filter(t => t.type === type);
+  if (!mine.length) { list.innerHTML = `<p class="muted small">${c.empty}</p>`; return; }
+  const sname = id => (svcs.find(s => s.id === id) || {}).name || id;
+  list.innerHTML = mine.map(t => {
+    const [lab, cls] = ST[t.status] || ST.open;
+    const th = t.thread.map(m => `<div class="msg ${m.by === 'admin' ? 'admin' : ''}"><small>${m.by === 'admin' ? '🧑‍💻 站長回覆' : '我補充'}・${Shop.fmt(m.at)}</small>${esc(m.text)}</div>`).join('');
+    const shots = t.image_count ? `<div class="shots">${Array.from({ length: t.image_count }, (_, n) => `<div class="im" data-tk="${esc(t.id)}" data-svc="${esc(t.service)}" data-n="${n}">截圖 ${n + 1}<br>載入中…</div>`).join('')}</div>` : '';
+    const fu = t.status === 'closed' ? '<p class="small muted" style="margin:8px 0 0">這則已經結案。有新的問題請重新送出一則。</p>'
+      : `<div class="fu"><input maxlength="1000" placeholder="補充說明…" data-fu="${esc(t.id)}" data-svc="${esc(t.service)}"><button class="btn sm" data-fub="${esc(t.id)}">送出</button></div>`;
+    return `<div class="tk ${t.user_unread ? 'unread' : ''}"><div class="hd"><span><span class="pill">${esc(sname(t.service))}</span> ${Shop.fmt(t.created_at)}</span><span class="pill ${cls}">${lab}</span></div>
+      <div class="tx">${esc(t.text)}</div>${t.type === 'wish' && t.price != null ? `<div class="small" style="color:var(--accent)">願意花 NT$${esc(t.price)}</div>` : ''}${shots}${th}${fu}</div>`;
+  }).join('');
+  list.querySelectorAll('.im[data-tk]').forEach(loadShot);
+  list.querySelectorAll('[data-fub]').forEach(b => b.onclick = () => followUp(b.dataset.fub, b));
+  list.querySelectorAll('[data-fu]').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') followUp(i.dataset.fu, list.querySelector(`[data-fub="${i.dataset.fu}"]`)); });
+  const unread = mine.filter(t => t.user_unread);
+  for (const sv of new Set(unread.map(t => t.service))) Shop.api('/api/support/read', { service: sv, ids: unread.filter(t => t.service === sv).map(t => t.id) }).then(() => unread.forEach(t => t.user_unread = false)).catch(() => {});
+}
+async function loadShot(el) {
+  try { const d = (await Shop.api('/api/support/image', { service: el.dataset.svc, id: el.dataset.tk, n: +el.dataset.n })).data; el.innerHTML = `<img src="${d}" alt="截圖">`; el.onclick = () => { $('viewer').querySelector('img').src = d; $('viewer').classList.add('on'); }; }
+  catch { el.innerHTML = '截圖<br>讀取失敗'; }
+}
+$('viewer').onclick = () => $('viewer').classList.remove('on');
+async function load() {
+  if (!Shop.user) return paint();
+  try { tickets = (await Shop.api('/api/support/mine', { service: svcs[0]?.id || 'pdf', all: true })).tickets; }
+  catch (e) { $('list').innerHTML = `<div class="notice bad">讀不到之前的訊息（${esc(e.message)}）</div>`; return; }
+  paint();
+}
+async function followUp(id, btn) {
+  const inp = $('list').querySelector(`[data-fu="${id}"]`), text = inp && inp.value.trim(); if (!text || btn.disabled) return;
+  btn.disabled = true;
+  try { await Shop.api('/api/support/followup', { service: inp.dataset.svc, id, text }); await load(); } catch (e) { btn.disabled = false; alert('送出失敗：' + e.message); }
+}
+function shrink(file) {
+  return new Promise((ok, bad) => {
+    const u = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(u);
+      for (const [side, qq] of [[1280, .72], [1080, .6], [860, .55], [640, .5]]) {
+        const k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(img.naturalWidth * k)); c.height = Math.max(1, Math.round(img.naturalHeight * k));
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        const d = c.toDataURL('image/jpeg', qq); if (d.length < 880000) return ok(d);
+      } bad(new Error('圖片太大')); };
+    img.onerror = () => { URL.revokeObjectURL(u); bad(new Error('不是圖片檔')); }; img.src = u;
+  });
+}
+$('file').onchange = async e => { for (const f of [...e.target.files].slice(0, 3 - imgs.length)) { try { imgs.push(await shrink(f)); } catch (er) { $('err').textContent = `「${f.name}」沒辦法附上：${er.message}`; } } e.target.value = ''; paint(); };
+$('tabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; type = b.dataset.t; $('err').textContent = ''; history.replaceState(null, '', '?t=' + type + (q.get('service') ? '&service=' + q.get('service') : '')); paint(); };
+$('text').oninput = () => { $('count').textContent = $('text').value.length + ' / 2000'; };
+$('loginBtn').onclick = () => Shop.signIn().then(u => u && location.reload()).catch(e => e.message !== '已取消登入' && alert(e.message));
+$('out').onclick = e => { e.preventDefault(); Shop.signOut(); };
+$('send').onclick = async () => {
+  if (busy) return; const text = $('text').value.trim(), err = $('err');
+  if (text.length < 2) { err.textContent = TK[type].label; $('text').focus(); return; }
+  const pv = $('price').value.trim();
+  if (type === 'wish' && pv && !(+pv >= 0 && +pv <= 100000)) { err.textContent = '金額請填 0～100000 之間的數字'; return; }
+  busy = true; $('send').disabled = true; err.textContent = ''; $('send').textContent = '送出中…';
+  try {
+    await Shop.api('/api/support/create', { service: $('svc').value, type, text, price: type === 'wish' && pv ? Math.round(+pv) : null, images: type === 'bug' ? imgs : [], device: `${navigator.userAgent}・螢幕 ${screen.width}×${screen.height}`.slice(0, 300) });
+    $('text').value = ''; $('price').value = ''; imgs = []; $('count').textContent = '0 / 2000'; await load();
+    err.innerHTML = `<span style="color:var(--ok)">✅ 已送出！回覆後會顯示在下面。</span>`;
+  } catch (e) { err.textContent = '送出失敗：' + e.message; }
+  finally { busy = false; $('send').disabled = false; $('send').textContent = TK[type].send; }
+};
+Shop.api('/api/catalog').then(c => {
+  svcs = c.services;
+  $('svc').innerHTML = svcs.map(s => `<option value="${esc(s.id)}">${esc(s.icon || '')} ${esc(s.name)}</option>`).join('') + '<option value="" disabled>──</option>';
+  if (q.get('service') && svcs.some(s => s.id === q.get('service'))) $('svc').value = q.get('service');
+  paint(); Shop.ready.then(load);
+}).catch(e => { $('list').innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; });
+paint();
+</script>
+</body>
+</html>

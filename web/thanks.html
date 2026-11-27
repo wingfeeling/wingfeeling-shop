@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>付款結果｜wingfeeling 數位商店</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="css/shop.css">
+</head>
+<body>
+<header id="top"></header>
+<main class="wrap narrow">
+  <h1>付款結果</h1>
+  <div class="card" id="box"><p class="muted"><span class="spin"></span> 確認付款結果中…</p></div>
+</main>
+<footer></footer>
+<script src="js/config.js"></script><script src="js/shop.js"></script>
+<script>
+Shop.header('');
+const { esc, money } = Shop, box = document.getElementById('box');
+let no = new URLSearchParams(location.search).get('order'); try { no = no || sessionStorage.getItem('shop.lastOrder'); } catch {}
+let tries = 0;
+async function load() {
+  if (!no) { box.innerHTML = '<p>沒有訂單編號。</p><a class="btn" href="orders.html">看我的訂單</a>'; return; }
+  let o; try { o = await Shop.api('/api/order?no=' + encodeURIComponent(no)); } catch (e) { box.innerHTML = `<div class="notice bad">${esc(e.message)}</div>`; return; }
+  const cat = await Shop.api('/api/catalog').catch(() => ({ services: [] }));
+  const svc = cat.services.find(s => s.id === o.service);
+  const back = svc ? `<a class="btn primary" href="${esc(svc.url)}">回到 ${esc(svc.name)}</a>` : '';
+  const head = `<p class="small muted">訂單編號 <span class="mono">${esc(o.no)}</span>・${esc(o.name)}・${money(o.amount)}</p>`;
+  if (o.status === 'paid') box.innerHTML = `<div class="notice ok">✅ 付款成功！${o.delivered ? '已經開通到你的帳號。' : '正在開通，通常幾秒內完成。'}</div>${head}<div class="row">${back}<a class="btn" href="orders.html">我的訂單</a></div>`;
+  else if (o.status === 'waiting') box.innerHTML = `<div class="notice info">已取得繳費資料（${esc(o.payment_type)}），繳費完成後會自動開通。</div>${head}<div class="row">${back}</div>`;
+  else if (o.status === 'failed') box.innerHTML = `<div class="notice bad">付款沒有成功（${esc(o.rtn_msg || '交易失敗')}），沒有扣款，可以再試一次。</div>${head}<div class="row">${back}</div>`;
+  else if (tries++ < 20) { setTimeout(load, 3000); box.innerHTML = `<p class="muted"><span class="spin"></span> 等待綠界通知付款結果…</p>${head}`; }
+  else box.innerHTML = `<div class="notice warn">還沒收到付款結果。如果已經付款，晚一點會自動開通；有問題請到<a href="support.html">客服</a>留言並附上訂單編號。</div>${head}<div class="row">${back}</div>`;
+}
+load();
+</script>
+</body>
+</html>
