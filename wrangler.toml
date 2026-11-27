@@ -19,7 +19,7 @@ crons = ["*/10 * * * *"]
 [[d1_databases]]
 binding = "DB"
 database_name = "wingfeeling-shop-db"
-database_id = "請貼上-D1-資料庫-ID"
+database_id = "0678c5a2-3206-4a46-9c79-98160c56575a"
 
 [observability]
 enabled = true
